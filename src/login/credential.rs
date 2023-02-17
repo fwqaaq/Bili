@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use super::client::{Client, ResponseData};
+use crate::error::Result;
 use qrcode::{render::unicode, QrCode};
 use reqwest::header::{self, USER_AGENT};
 use serde::{Deserialize, Serialize};
@@ -28,7 +29,7 @@ impl Credential {
         Self(Client::new(headers))
     }
 
-    pub async fn get_web_qrcode(&self) -> Result<(String, String), Box<dyn std::error::Error>> {
+    pub async fn get_web_qrcode(&self) -> Result<(String, String)> {
         let qr_code: Value = self
             .0
             .client
@@ -51,7 +52,7 @@ impl Credential {
         Ok((qrcode_image, qrcode_key.to_string()))
     }
 
-    pub async fn login_by_web_qrcode(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn login_by_web_qrcode(&self) -> Result<()> {
         let (qrcode_iamge, qrcode_key) = self.get_web_qrcode().await?;
 
         println!("{qrcode_iamge}");
@@ -93,7 +94,7 @@ impl Credential {
 mod tests {
     use super::*;
     #[tokio::test]
-    async fn test() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test() -> Result<()> {
         let res = Credential::new();
         res.login_by_web_qrcode().await?;
         Ok(())

@@ -1,5 +1,5 @@
 [package]
-name = "Bili"
+name = "bili"
 version = "0.1.0"
 edition = "2021"
 
@@ -13,4 +13,5 @@ reqwest = { version = "0.11.14", features = ["json", "stream", "blocking", "defl
 reqwest_cookie_store = "0.5.0"
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = "1.0.93"
+thiserror = "1.0.38"
 tokio = { version = "1.25.0", features = ["full"] }
