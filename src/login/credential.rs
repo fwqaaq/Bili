@@ -1,8 +1,4 @@
-use std::{
-    fmt::format,
-    io::{self, Write},
-    time::Duration,
-};
+use std::time::Duration;
 
 use super::client::{Client, ResponseData};
 use qrcode::{render::unicode, QrCode};
@@ -32,7 +28,7 @@ impl Credential {
         Self(Client::new(headers))
     }
 
-    pub async fn get_web_qrcode(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn get_web_qrcode(&self) -> Result<(String, String), Box<dyn std::error::Error>> {
         let qr_code: Value = self
             .0
             .client
@@ -46,46 +42,49 @@ impl Credential {
             qr_code["data"]["url"].as_str().unwrap(),
             qr_code["data"]["qrcode_key"].as_str().unwrap(),
         );
-        let image = QrCode::new(url)
+        let qrcode_image = QrCode::new(url)
             .expect("QrCode don't generat, please check generator url")
             .render::<unicode::Dense1x2>()
             .dark_color(unicode::Dense1x2::Light)
             .light_color(unicode::Dense1x2::Dark)
             .build();
-        println!("{image}");
-        // let mut input = String::new();
-        // loop {
-        //     print!("Enter 'done' when you have scanned the QR code: ");
-        //     io::stdout().flush().expect("Error flushing stdout");
-        //     io::stdin()
-        //         .read_line(&mut input)
-        //         .expect("Error reading input");
-        //     if input.trim() == "done" {
-        //         break;
-        //     }
-        //     input.clear();
-        // }
-        tokio::time::sleep(Duration::from_secs(10)).await;
-        let ResponseData{data:login_status,..}: ResponseData<LoginStatus> = self
-         .0
-         .client
-         .get(format!("https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key={qrcode_key}"))
-         .header(USER_AGENT, "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36")
-         .send()
-         .await?
-         .json()
-         .await?;
+        Ok((qrcode_image, qrcode_key.to_string()))
+    }
 
-        let value = match login_status.unwrap() {
-            LoginStatus { code: 0, url, .. } => {
-                println!("扫码成功，您已登录");
-                url.unwrap()
+    pub async fn login_by_web_qrcode(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let (qrcode_iamge, qrcode_key) = self.get_web_qrcode().await?;
+
+        println!("{qrcode_iamge}");
+
+        let value = loop {
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            let ResponseData{data:login_status,..}: ResponseData<LoginStatus> = self
+            .0
+            .client
+            .get(format!("https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key={qrcode_key}"))
+            .header(USER_AGENT, "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36")
+            .send()
+            .await?
+            .json()
+            .await?;
+
+            match login_status.unwrap() {
+                LoginStatus { code: 0, url, .. } => {
+                    println!("扫码成功，您已登录");
+                    break url.unwrap();
+                }
+                LoginStatus {
+                    code: 86101 | 86090,
+                    ..
+                } => {
+                    println!("请扫码确认！！！")
+                }
+                _ => {
+                    break String::from("checkout your url");
+                }
             }
-            LoginStatus { code, .. } => code.to_string(),
         };
-
-        println!("{value}");
-
+        println!("url: {value}");
         Ok(())
     }
 }
@@ -96,8 +95,7 @@ mod tests {
     #[tokio::test]
     async fn test() -> Result<(), Box<dyn std::error::Error>> {
         let res = Credential::new();
-        let s = res.get_web_qrcode().await?;
-        println!("{s:?}");
+        res.login_by_web_qrcode().await?;
         Ok(())
     }
 }
